@@ -1,0 +1,9 @@
+If Tensorflow 2.0 is intall you should be able to run golois.py as is
+It uses a set of 100 000 examples saved in numpy arrays to train the network
+The games used to generate the training data are self play games of Facebook ELF opengo Go program
+In games.data there are 500 000 such games
+It means there are potentially 100 000 000 different training examples in total
+In order to get dynamic batches that randomly choose 100 000 examples out of the 100 000 000 ones you should install Pybind and run compile.sh (on Ubuntu)
+Then you can import golois and call golois.getBatch to have dynamically built batches
+The maximum number of parameters allowed for your model is 1 000 000
+Enjoy!

@@ -1,7 +1,7 @@
 #include <math.h>
 #include <time.h>
 #include <sys/time.h>
-#include <string.h>
+#include <string>
 #include <list>
 #include <float.h>
 #include <vector>
@@ -23,16 +23,16 @@ int nbExamples = 128;
 
 PYBIND11_MODULE(golois, m) {
         m.def("convert", [](std::string sgf_file, std::string data_file) {
-          loadGames(sgf_file.c_str());
-          writeGamesData(data_file.c_str());
+                loadGames(sgf_file.c_str());
+                writeGamesData(data_file.c_str());
         }, "Convert a sgf file into a data file", py::arg("sgf_file"), py::arg("data_file"));
 
         m.def("getBatch", [](py::array_t<float> x, py::array_t<float> policy,
-                             py::array_t<float> value, py::array_t<float> end) {
-                if (!loaded) {
+                             py::array_t<float> value, py::array_t<float> end, std::string data_path, bool reload) {
+                if (reload) {
                         memcpy (historyBoard [0], board.board, MaxSize);
                         fprintf (stderr, "load games.data\n");
-                        loadGamesData ("games.data");
+                        loadGamesData (data_path.c_str());
                         loaded = true;
                 }
                 auto r = x.mutable_unchecked<4>();

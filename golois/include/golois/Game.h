@@ -18,47 +18,11 @@ PositionSGF * positionSGF = NULL;
 int startShuffle = 0;
 
 void shuffle () {
-        fprintf (stderr, "nbPositionsSGF = %d\n", nbPositionsSGF);
         for (int i = startShuffle; i < nbPositionsSGF; i++) {
                 int other = startShuffle + rand () % (nbPositionsSGF - startShuffle);
                 PositionSGF tmp = positionSGF [i];
                 positionSGF [i] = positionSGF [other];
                 positionSGF [other] = tmp;
-        }
-}
-
-void loadGame(const char *sgfFile) {
-        nbPositionsSGF = 0;
-        nbGames = 0;
-        if (positionSGF == NULL)
-                positionSGF = new PositionSGF [MaxGames * MaxMoveGame];
-
-        int res = 0;
-        FILE * sgf = fopen (sgfFile, "r");
-        if (sgf != NULL) {
-                Board b = board;
-                b.loadSGF (sgf);
-                //if (nbGames == 180)
-                //b.print (stderr);
-                fprintf (stderr, "%s ", sgfFile);
-                winner [nbGames] = b.winner;
-                nbMovesSGFGame [nbGames] = 0;
-                for (int i = 0; i < b.NbMovesPlayed; i++) {
-                        //if (b.Moves [i] != b.passe) {
-                        Move m;
-                        m.inter = moveInter [b.Moves [i]];
-                        m.color = b.colorMove [i];
-                        if (nbMovesSGFGame [nbGames] < MaxMoveGame - 1) {
-                                proGame [nbGames] [nbMovesSGFGame [nbGames]] = m;
-                                positionSGF [nbPositionsSGF].game = nbGames;
-                                positionSGF [nbPositionsSGF].move = nbMovesSGFGame [nbGames];
-                                nbPositionsSGF++;
-                                nbMovesSGFGame [nbGames]++;
-                        }
-                        //}
-                }
-                nbGames++;
-                fclose (sgf);
         }
 }
 
@@ -80,7 +44,6 @@ void loadGames (const char * name) {
                                         b.loadSGF (sgf);
                                         //if (nbGames == 180)
                                         //b.print (stderr);
-                                        fprintf (stderr, "%s ", game);
                                         winner [nbGames] = b.winner;
                                         nbMovesSGFGame [nbGames] = 0;
                                         for (int i = 0; i < b.NbMovesPlayed; i++) {

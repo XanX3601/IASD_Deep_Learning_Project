@@ -127,3 +127,10 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# sgf directory
+sgf/
+
+# data directory
+data/
+game.txt

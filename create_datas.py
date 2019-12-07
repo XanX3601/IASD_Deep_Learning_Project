@@ -3,8 +3,10 @@ import os
 import golois
 import tqdm
 
-sgf_directory = 'sgf/'
-data_directory = 'data/'
+import src
+
+sgf_directory = src.sgf_directory
+data_directory = src.data_directory
 game_txt_path = 'game.txt'
 
 if not os.path.exists(sgf_directory):

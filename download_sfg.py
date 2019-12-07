@@ -5,7 +5,9 @@ import pandas as pd
 import requests
 import tqdm
 
-sgf_directory = 'sgf/'
+import src
+
+sgf_directory = src.sgf_directory
 
 df = pd.read_csv(
     'https://dl.fbaipublicfiles.com/elfopengo/v2_training_run/urls.csv')

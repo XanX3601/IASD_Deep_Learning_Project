@@ -1,4 +1,5 @@
 import os
+import argparse
 import tarfile
 
 import pandas as pd
@@ -6,6 +7,10 @@ import requests
 import tqdm
 
 import src
+
+parser = argparse.ArgumentParser(description='Download the .sgf files')
+
+args = parser.parse_args()
 
 sgf_directory = src.sgf_directory
 

@@ -2,6 +2,8 @@ import enum
 
 import golois
 import numpy as np
+import tensorflow.keras.utils as kutils
+import multiprocessing
 
 data_directory = 'data'
 currently_loaded = None
@@ -89,3 +91,25 @@ class Data(enum.Enum):
         end = np.empty((batch_size, 19, 19, 2), dtype=np.float32)
 
         golois.get_batch(input, policy_output, value_output, end, start_index)
+        return input, policy_output, value_output
+
+class DataSequence(kutils.Sequence):
+    def __init__(self, data, batch_size, use_random_batch=False, verbose=False):
+        self.data = data
+        self.batch_size = batch_size
+        self.lock = multiprocessing.Lock()
+        self.use_random_batch = use_random_batch
+        self.verbose = verbose
+
+    def __len__(self):
+        with self.lock:
+            return self.data.nb_move // self.batch_size + 1
+
+    def __getitem__(self, index):
+        with self.lock:
+            if self.use_random_batch:
+                input, policy, value = self.data.get_random_batch(self.batch_size, self.verbose)
+            else:
+                input, policy, value = self.data.get_batch(index, self.batch_size, self.verbose)
+
+            return input, {'policy': policy, 'value': value}

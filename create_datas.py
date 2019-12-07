@@ -1,9 +1,15 @@
+import argparse
 import os
 
 import golois
 import tqdm
 
 import src
+
+parser = argparse.ArgumentParser(
+    description='Create .data files from sgf files')
+
+args = parser.parse_args()
 
 sgf_directory = src.sgf_directory
 data_directory = src.data_directory

@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
+#include <algorithm>
 
 namespace py = pybind11;
 
@@ -110,9 +111,10 @@ PYBIND11_MODULE(golois, m) {
                 auto v = value.mutable_unchecked<1>();
                 auto e = end.mutable_unchecked<4>();
                 nbExamples = r.shape (0);
-                fprintf (stderr, "r.shape = (%d, %d, %d, %d)\n", r.shape (0), r.shape (1), r.shape (2), r.shape (3));
-                fprintf (stderr, "nbExamples = %d\n", nbExamples);
-                for (int i = 0; i < nbExamples; i++) {
+                // fprintf (stderr, "r.shape = (%d, %d, %d, %d)\n", r.shape (0), r.shape (1), r.shape (2), r.shape (3));
+                // fprintf (stderr, "nbExamples = %d\n", nbExamples);
+                int stop = std::min(nbExamples, nbPositionsSGF - start_index);
+                for (int i = 0; i < stop; i++) {
                         //fprintf (stderr, "i = %d, ", i);
                         // choose a random state
                         int pos = start_index + i;

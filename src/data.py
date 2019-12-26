@@ -4,6 +4,7 @@ import golois
 import numpy as np
 import tensorflow.keras.utils as kutils
 import multiprocessing
+import src
 
 data_directory = 'data'
 currently_loaded = None
@@ -45,11 +46,11 @@ class Data(enum.Enum):
     Model1498000 = (2793475, 'data/1498000.json.data')
     Model1499000 = (2772000, 'data/1499000.json.data')
 
-    def __init__(self, nb_move, path):
+    def __init__(self, size, path):
         self.path = path
-        self.nb_move = nb_move
+        self.size = size
 
-    def get_random_batch(self, batch_size=128, verbose=False):
+    def get_random_batch(self, batch_size, verbose=False):
         """
         Load a random batch from self
 
@@ -71,7 +72,7 @@ class Data(enum.Enum):
 
         return input, policy_output, value_output
 
-    def get_batch(self, start_index, batch_size=128, verbose=False):
+    def get_batch(self, start_index, batch_size, verbose=False):
         """
         Load a batch from self starting at given index
 
@@ -85,6 +86,8 @@ class Data(enum.Enum):
             golois.load(self.path, verbose)
             currently_loaded = self
 
+        batch_size = min((batch_size, self.size - start_index))
+
         input = np.empty((batch_size, 19, 19, 8), dtype=np.float32)
         policy_output = np.empty((batch_size, 361), dtype=np.float32)
         value_output = np.empty((batch_size,), dtype=np.float32)
@@ -92,24 +95,3 @@ class Data(enum.Enum):
 
         golois.get_batch(input, policy_output, value_output, end, start_index)
         return input, policy_output, value_output
-
-class DataSequence(kutils.Sequence):
-    def __init__(self, data, batch_size, use_random_batch=False, verbose=False):
-        self.data = data
-        self.batch_size = batch_size
-        self.lock = multiprocessing.Lock()
-        self.use_random_batch = use_random_batch
-        self.verbose = verbose
-
-    def __len__(self):
-        with self.lock:
-            return self.data.nb_move // self.batch_size + 1
-
-    def __getitem__(self, index):
-        with self.lock:
-            if self.use_random_batch:
-                input, policy, value = self.data.get_random_batch(self.batch_size, self.verbose)
-            else:
-                input, policy, value = self.data.get_batch(index, self.batch_size, self.verbose)
-
-            return input, {'policy': policy, 'value': value}

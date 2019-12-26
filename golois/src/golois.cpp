@@ -44,8 +44,8 @@ PYBIND11_MODULE(golois, m) {
                 auto v = value.mutable_unchecked<1>();
                 auto e = end.mutable_unchecked<4>();
                 nbExamples = r.shape (0);
-                fprintf (stderr, "r.shape = (%d, %d, %d, %d)\n", r.shape (0), r.shape (1), r.shape (2), r.shape (3));
-                fprintf (stderr, "nbExamples = %d\n", nbExamples);
+                // fprintf (stderr, "r.shape = (%d, %d, %d, %d)\n", r.shape (0), r.shape (1), r.shape (2), r.shape (3));
+                // fprintf (stderr, "nbExamples = %d\n", nbExamples);
                 for (ssize_t i = 0; i < nbExamples; i++) {
                         //fprintf (stderr, "i = %d, ", i);
                         // choose a random state

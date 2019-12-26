@@ -26,3 +26,45 @@ def basic_model():
     value_head = klayers.Dense(1, activation='sigmoid', name=value_output_name)(value_head)
 
     return keras.Model(inputs=input, outputs=[policy_head, value_head])
+
+def resnet():
+    def policy_head(x):
+        x = keras.layers.Conv2D(64, 3, activation='relu', padding='same')(x)
+        x = keras.layers.BatchNormalization()(x)
+        x = keras.layers.LeakyReLU()(x)
+        x = keras.layers.Conv2D(64, 3, activation='relu', padding='same')(x)
+        x = keras.layers.BatchNormalization()(x)
+        x = keras.layers.LeakyReLU()(x)
+        x = keras.layers.Conv2D(6, 3, activation='relu', padding='same')(x)
+        x = keras.layers.Flatten()(x)
+        x = keras.layers.Dense(361, activation='softmax', name=policy_output_name)(x)
+        return x
+
+    def value_head(x):
+        x = keras.layers.Conv2D(64, 3, activation='relu', padding='same')(x)
+        x = keras.layers.BatchNormalization()(x)
+        x = keras.layers.LeakyReLU()(x)
+        x = keras.layers.Flatten()(x)
+        x = keras.layers.Dense(1, activation='sigmoid', name=value_output_name)(x)
+        return x
+
+    x = keras.Input(input_shape, name=input_name)
+    input = x
+    x = keras.layers.LeakyReLU()(x)
+    x_skip = x
+    x = keras.layers.Conv2D(64, 3, activation='relu', padding='same')(x)
+    x = keras.layers.BatchNormalization()(x)
+    x = keras.layers.LeakyReLU()(x)
+    x = keras.layers.Conv2D(64, 3, activation='relu', padding='same')(x)
+    x = keras.layers.BatchNormalization()(x)
+
+    x_skip = keras.layers.Conv2D(64, 3, activation='relu', padding='same')(x_skip)
+    x_skip = keras.layers.BatchNormalization()(x_skip)
+
+    x = keras.layers.Add()([x, x_skip])
+    x = keras.layers.LeakyReLU()(x)
+
+    policy = policy_head(x)
+    value = value_head(x)
+
+    return keras.Model(inputs=input, outputs=[policy, value])

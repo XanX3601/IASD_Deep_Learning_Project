@@ -23,7 +23,10 @@ def data_type(string):
     return data
 
 
-models = {'basic': src.basic_model}
+models = {
+    'basic': src.basic_model,
+    'resnet': src.resnet,
+}
 
 parser = argparse.ArgumentParser(description='train a model')
 parser.add_argument('model', choices=models.keys(),
@@ -250,7 +253,8 @@ for epoch in epoch_tqdm:
         # compute losses
         loss_policy_value = loss_policy_fn(validation_policy, logits_policy)
         loss_value_value = loss_value_fn(validation_value, logits_value)
-        loss_value = args.policy_weight * loss_policy_value + args.value_weight * loss_value_value
+        loss_value = args.policy_weight * loss_policy_value + \
+            args.value_weight * loss_value_value
 
         # update metrics
         epoch_validation_loss(loss_value)

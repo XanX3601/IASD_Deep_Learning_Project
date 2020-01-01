@@ -28,6 +28,13 @@ models = {
     'resnet': src.resnet,
 }
 
+loss_value_functions = {
+    'mse': tf.keras.losses.MeanSquaredError(),
+    'bce': tf.keras.losses.BinaryCrossentropy(from_logits=True),
+}
+
+backup_dir = '{}backups/'.format(src.models_dir)
+
 parser = argparse.ArgumentParser(description='train a model')
 parser.add_argument('model', choices=models.keys(),
                     help='the name of the model to train')
@@ -49,10 +56,13 @@ parser.add_argument('--train-logs', '-tl', default='{}train_logs.csv'.format(
     src.results_dir), help='path to train logs file')
 parser.add_argument(
     '--model-file', '-mf', default='{}model.h5'.format(src.models_dir), help='path to the model file')
-parser.add_argument('--policy-weight', '-pw', default=1,
-                    type=float, help='the weight associated to the policy')
-parser.add_argument('--value-weight', '-vw', default=1,
-                    type=float, help='the weight associated to the value')
+parser.add_argument('--value-loss', '-vl', default='mse',
+                    choices=loss_value_functions.keys(), help='the loss to use on value')
+parser.add_argument('--backup', action='store_true',
+                    help='if set, backup model at every epoch')
+parser.add_argument('--learning-rate', '-lr', default=0.1,
+                    type=float, help='the learning rate')
+
 
 args = parser.parse_args()
 
@@ -76,6 +86,7 @@ if args.verbose:
 
 datas = list(src.Data)
 datas_next_start_index = {data: 0 for data in datas}
+data_index = len(datas) - 1
 
 if args.verbose:
     print('{}: Done "Data Preparation" in {:.3f} s'.format(
@@ -107,7 +118,7 @@ if args.verbose:
     start = time.time()
 
 loss_policy_fn = tf.keras.losses.CategoricalCrossentropy(from_logits=True)
-loss_value_fn = tf.keras.losses.MeanSquaredError()
+loss_value_fn = loss_value_functions[args.value_loss]
 
 if args.verbose:
     print('{}: Done "Create Loss Functions" in {:.3f} s'.format(
@@ -118,7 +129,7 @@ if args.verbose:
     print('{}: Begin "Create Optimizer"'.format(get_date_str()))
     start = time.time()
 
-optimizer = tf.keras.optimizers.Adam()
+optimizer = tf.keras.optimizers.Adam(lr=args.learning_rate)
 
 if args.verbose:
     print('{}: Done "Create Optimizer" in {:.3f} s'.format(
@@ -131,7 +142,7 @@ if args.verbose:
 
 src.create_dir(src.results_dir)
 train_logs = open(args.train_logs, 'w')
-train_logs.write('{};{};{};{};{};{};{};{};{};{};{};{};{}\n'.format(
+train_logs.write('{};{};{};{};{};{};{};{};{};{};{};{};{};{};{}\n'.format(
     src.train_logs_epoch,
     src.train_logs_start_time,
     src.train_logs_end_time,
@@ -141,15 +152,21 @@ train_logs.write('{};{};{};{};{};{};{};{};{};{};{};{};{}\n'.format(
     src.TrainLogsMetrics.train_loss_policy,
     src.TrainLogsMetrics.train_loss_value,
     src.TrainLogsMetrics.train_accuracy_policy,
+    src.TrainLogsMetrics.train_accuracy_value,
     src.TrainLogsMetrics.validation_loss,
     src.TrainLogsMetrics.validation_loss_policy,
     src.TrainLogsMetrics.validation_loss_value,
-    src.TrainLogsMetrics.validation_accuracy_policy
+    src.TrainLogsMetrics.validation_accuracy_policy,
+    src.TrainLogsMetrics.validation_accuracy_value,
 ))
 
 if args.verbose:
     print('{}: Done "Open Train Logs File" in {:.3f} s'.format(
         get_date_str(), time.time() - start))
+
+# create backup dir
+if args.backup:
+    src.create_dir(backup_dir)
 
 # epoch loop
 epoch_tqdm = tqdm.trange(args.epoch, desc='Epoch', unit='epoch')
@@ -167,6 +184,8 @@ for epoch in epoch_tqdm:
         name=src.TrainLogsMetrics.train_loss_value)
     epoch_train_accuracy_policy = tf.keras.metrics.CategoricalAccuracy(
         name=src.TrainLogsMetrics.train_accuracy_policy)
+    epoch_train_accuracy_value = tf.keras.metrics.BinaryAccuracy(
+        src.TrainLogsMetrics.train_accuracy_value)
     epoch_validation_loss = tf.keras.metrics.Mean(
         name=src.TrainLogsMetrics.validation_loss)
     epoch_validation_loss_policy = tf.keras.metrics.Mean(
@@ -175,6 +194,8 @@ for epoch in epoch_tqdm:
         name=src.TrainLogsMetrics.validation_loss_value)
     epoch_validation_accuracy_policy = tf.keras.metrics.CategoricalAccuracy(
         name=src.TrainLogsMetrics.validation_accuracy_policy)
+    epoch_validation_accuracy_value = tf.keras.metrics.BinaryAccuracy(
+        src.TrainLogsMetrics.train_accuracy_value)
 
     # prepare train dataset
     if args.verbose:
@@ -187,7 +208,11 @@ for epoch in epoch_tqdm:
     except:
         pass
 
-    data = random.choice(datas)
+    data = datas[data_index]
+
+    if args.verbose:
+        epoch_tqdm.write('    {}: Data "{}"; index {}'.format(
+            get_date_str(), data.name, datas_next_start_index[data]))
 
     train_input, train_policy, train_value = data.get_batch(
         datas_next_start_index[data], args.train_dataset_size)
@@ -201,8 +226,13 @@ for epoch in epoch_tqdm:
     datas_next_start_index[data] += args.train_dataset_size
     if data == args.validation_data and datas_next_start_index[data] >= data.size - args.validation_dataset_size:
         datas_next_start_index[data] = 0
+        data_index -= 1
     elif datas_next_start_index[data] >= data.size:
         datas_next_start_index[data] = 0
+        data_index -= 1
+
+    if data_index == -1:
+        data_index = len(datas) - 1
 
     if args.verbose:
         epoch_tqdm.write('    {}: Done "Create Training Dataset" in {:.3f} s'.format(
@@ -224,8 +254,7 @@ for epoch in epoch_tqdm:
             loss_policy_value = loss_policy_fn(batch_policy, logits_policy)
             loss_value_value = loss_value_fn(batch_value, logits_value)
 
-            loss_value = args.policy_weight * loss_policy_value + \
-                args.value_weight * loss_value_value
+            loss_value = loss_policy_value + loss_value_value
 
         gradients = tape.gradient(loss_value, model.trainable_weights)
 
@@ -237,6 +266,7 @@ for epoch in epoch_tqdm:
         epoch_train_loss_policy(loss_policy_value)
         epoch_train_loss_value(loss_value_value)
         epoch_train_accuracy_policy(batch_policy, logits_policy)
+        epoch_train_accuracy_value(batch_value, logits_value)
 
     # validation loop
     validation_tqdm = tqdm.tqdm(validation_dataset, desc='Validation',
@@ -253,18 +283,18 @@ for epoch in epoch_tqdm:
         # compute losses
         loss_policy_value = loss_policy_fn(validation_policy, logits_policy)
         loss_value_value = loss_value_fn(validation_value, logits_value)
-        loss_value = args.policy_weight * loss_policy_value + \
-            args.value_weight * loss_value_value
+        loss_value = loss_policy_value + loss_value_value
 
         # update metrics
         epoch_validation_loss(loss_value)
         epoch_validation_loss_policy(loss_policy_value)
         epoch_validation_loss_value(loss_value_value)
         epoch_validation_accuracy_policy(validation_policy, logits_policy)
+        epoch_validation_accuracy_value(validation_value, logits_value)
 
     # updates logs
     epoch_end_time = time.time()
-    train_logs.write('{};{};{};{};{};{};{};{};{};{};{};{};{}\n'.format(
+    train_logs.write('{};{};{};{};{};{};{};{};{};{};{};{};{};{};{}\n'.format(
         epoch,
         epoch_start_time,
         epoch_end_time,
@@ -274,23 +304,31 @@ for epoch in epoch_tqdm:
         epoch_train_loss_policy.result(),
         epoch_train_loss_value.result(),
         epoch_train_accuracy_policy.result(),
+        epoch_train_accuracy_value.result(),
         epoch_validation_loss.result(),
         epoch_validation_loss_policy.result(),
         epoch_validation_loss_value.result(),
-        epoch_validation_accuracy_policy.result()
+        epoch_validation_accuracy_policy.result(),
+        epoch_validation_accuracy_value.result(),
     ))
+    train_logs.flush()
 
     if args.verbose:
-        epoch_tqdm.write('    {}={}\n    {}={}\n    {}={}\n    {}={}\n    {}={}\n    {}={}\n    {}={}\n    {}={}'.format(
+        epoch_tqdm.write('    {}={}\n    {}={}\n    {}={}\n    {}={}\n    {}={}\n    {}={}\n    {}={}\n    {}={}\n    {}={}\n    {}={}'.format(
             src.TrainLogsMetrics.train_loss, epoch_train_loss.result(),
             src.TrainLogsMetrics.train_loss_policy, epoch_train_loss_policy.result(),
             src.TrainLogsMetrics.train_loss_value, epoch_train_loss_value.result(),
             src.TrainLogsMetrics.train_accuracy_policy, epoch_train_accuracy_policy.result(),
+            src.TrainLogsMetrics.train_accuracy_value, epoch_train_accuracy_value.result(),
             src.TrainLogsMetrics.validation_loss, epoch_validation_loss.result(),
             src.TrainLogsMetrics.validation_loss_policy, epoch_validation_loss_policy.result(),
             src.TrainLogsMetrics.validation_loss_value, epoch_validation_loss_value.result(),
-            src.TrainLogsMetrics.validation_accuracy_policy, epoch_validation_accuracy_policy.result()
+            src.TrainLogsMetrics.validation_accuracy_policy, epoch_validation_accuracy_policy.result(),
+            src.TrainLogsMetrics.validation_accuracy_value, epoch_validation_accuracy_value.result(),
         ))
+
+    if args.backup:
+        model.save('{}epoch{}.h5'.format(backup_dir, epoch))
 
 # save model
 if args.verbose:

@@ -60,9 +60,8 @@ parser.add_argument('--value-loss', '-vl', default='mse',
                     choices=loss_value_functions.keys(), help='the loss to use on value')
 parser.add_argument('--backup', action='store_true',
                     help='if set, backup model at every epoch')
-parser.add_argument('--learning-rate', '-lr', default=0.1,
+parser.add_argument('--learning-rate', '-lr', default=1,
                     type=float, help='the learning rate')
-
 
 args = parser.parse_args()
 
@@ -87,6 +86,7 @@ if args.verbose:
 datas = list(src.Data)
 datas_next_start_index = {data: 0 for data in datas}
 data_index = len(datas) - 1
+datas_weight = [index for index in range(len(datas))]
 
 if args.verbose:
     print('{}: Done "Data Preparation" in {:.3f} s'.format(
@@ -129,7 +129,8 @@ if args.verbose:
     print('{}: Begin "Create Optimizer"'.format(get_date_str()))
     start = time.time()
 
-optimizer = tf.keras.optimizers.Adam(lr=args.learning_rate)
+optimizer = tf.keras.optimizers.SGD(
+    lr=args.learning_rate, momentum=0.9, nesterov=True)
 
 if args.verbose:
     print('{}: Done "Create Optimizer" in {:.3f} s'.format(
@@ -168,6 +169,11 @@ if args.verbose:
 if args.backup:
     src.create_dir(backup_dir)
 
+# keep track of the best models
+if args.backup:
+    best_accuracy_policy = None
+    best_accuracy_value = None
+
 # epoch loop
 epoch_tqdm = tqdm.trange(args.epoch, desc='Epoch', unit='epoch')
 for epoch in epoch_tqdm:
@@ -197,48 +203,55 @@ for epoch in epoch_tqdm:
     epoch_validation_accuracy_value = tf.keras.metrics.BinaryAccuracy(
         src.TrainLogsMetrics.train_accuracy_value)
 
+    # update learning rate
+    if epoch % 20 == 0:
+        tf.keras.backend.set_value(
+            optimizer.lr, tf.keras.backend.get_value(optimizer.lr) / 10)
+
+        if args.verbose:
+            epoch_tqdm.write('    {}: Info new learning rate {}'.format(
+                get_date_str(), tf.keras.backend.get_value(optimizer.lr)))
+
     # prepare train dataset
-    if args.verbose:
-        epoch_tqdm.write(
-            '    {}: Begin "Create Training Dataset"'.format(get_date_str()))
-        start = time.time()
+    if epoch % 3 == 0:
+        if args.verbose:
+            epoch_tqdm.write(
+                '    {}: Begin "Create Training Dataset"'.format(get_date_str()))
+            start = time.time()
 
-    try:
-        del train_input, train_policy, train_value, train_dataset
-    except:
-        pass
+        try:
+            del train_input, train_policy, train_value, train_dataset
+        except:
+            pass
 
-    data = datas[data_index]
+        data = random.choices(datas, datas_weight)[0]
 
-    if args.verbose:
-        epoch_tqdm.write('    {}: Data "{}"; index {}'.format(
-            get_date_str(), data.name, datas_next_start_index[data]))
+        epoch_start_index = datas_next_start_index[data]
+        
+        train_input, train_policy, train_value = data.get_batch(
+            datas_next_start_index[data], args.train_dataset_size)
+        train_dataset = tf.data.Dataset.from_tensor_slices((
+            train_input,
+            {src.policy_output_name: train_policy,
+                src.value_output_name: train_value}
+        )).batch(args.batch_size)
 
-    train_input, train_policy, train_value = data.get_batch(
-        datas_next_start_index[data], args.train_dataset_size)
-    train_dataset = tf.data.Dataset.from_tensor_slices((
-        train_input,
-        {src.policy_output_name: train_policy, src.value_output_name: train_value}
-    )).shuffle(args.batch_size).batch(args.batch_size)
+        if args.verbose:
+            epoch_tqdm.write('    {}: Info Data "{}"; index {}'.format(
+                get_date_str(), data.name, datas_next_start_index[data]))
 
-    epoch_start_index = datas_next_start_index[data]
+        datas_next_start_index[data] += args.train_dataset_size
+        if data == args.validation_data and datas_next_start_index[data] >= data.size - args.validation_dataset_size:
+            datas_next_start_index[data] = 0
+        elif datas_next_start_index[data] >= data.size:
+            datas_next_start_index[data] = 0
 
-    datas_next_start_index[data] += args.train_dataset_size
-    if data == args.validation_data and datas_next_start_index[data] >= data.size - args.validation_dataset_size:
-        datas_next_start_index[data] = 0
-        data_index -= 1
-    elif datas_next_start_index[data] >= data.size:
-        datas_next_start_index[data] = 0
-        data_index -= 1
-
-    if data_index == -1:
-        data_index = len(datas) - 1
-
-    if args.verbose:
-        epoch_tqdm.write('    {}: Done "Create Training Dataset" in {:.3f} s'.format(
-            get_date_str(), time.time() - start))
+        if args.verbose:
+            epoch_tqdm.write('    {}: Done "Create Training Dataset" in {:.3f} s'.format(
+                get_date_str(), time.time() - start))
 
     # training loop
+    train_dataset = train_dataset.shuffle(args.batch_size)
     batch_tqdm = tqdm.tqdm(train_dataset, desc='Training', total=args.train_dataset_size //
                            args.batch_size + 1, leave=False, unit='batch')
     for batch_x, batch_y in batch_tqdm:
@@ -328,7 +341,21 @@ for epoch in epoch_tqdm:
         ))
 
     if args.backup:
-        model.save('{}epoch{}.h5'.format(backup_dir, epoch))
+        if best_accuracy_policy is None:
+            best_accuracy_policy = epoch_validation_accuracy_policy.result()
+            best_accuracy_value = epoch_validation_accuracy_value.result()
+
+            model.save('{}best_accuracy_policy.h5'.format(backup_dir))
+            model.save('{}best_accuracy_value.h5'.format(backup_dir))
+
+        if best_accuracy_policy < epoch_validation_accuracy_policy.result():
+            best_accuracy_policy = epoch_validation_accuracy_policy.result()
+            model.save('{}best_accuracy_policy.h5'.format(backup_dir))
+
+        if best_accuracy_value < epoch_validation_accuracy_value.result():
+            best_accuracy_value = epoch_validation_accuracy_value.result()
+            model.save('{}best_accuracy_value.h5'.format(backup_dir))
+
 
 # save model
 if args.verbose:

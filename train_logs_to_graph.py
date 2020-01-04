@@ -27,7 +27,7 @@ axes = [ax1, ax2, ax3, ax4, ax5]
 
 ax_data = fig.add_subplot(gs[1, :])
 
-x = df[src.train_logs_epoch]
+x = range(len(df[src.train_logs_epoch]))
 
 axes[0].plot(x, df[src.TrainLogsMetrics.train_loss],
              alpha=0.7, label=src.TrainLogsMetrics.train_loss)

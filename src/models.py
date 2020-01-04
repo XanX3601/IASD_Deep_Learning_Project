@@ -40,7 +40,8 @@ def resnet():
         x = keras.layers.ReLU()(x)
         return x
 
-    def residual_block(x, x_skip):
+    def residual_block(x):
+        x_skip = x
         x = keras.layers.Conv2D(nb_filter, 3, padding='same')(x)
         x = keras.layers.BatchNormalization()(x)
         x = keras.layers.ReLU()(x)
@@ -74,13 +75,9 @@ def resnet():
     x = keras.Input(input_shape, name=input_name)
     input = x
 
-    x_skip = x
-    x_skip = keras.layers.Conv2D(nb_filter, 3, padding='same')(x_skip)
-    x_skip = keras.layers.BatchNormalization()(x_skip)
-
     x = convolutional_block(x)
-    for _ in range(34):
-        x = residual_block(x, x_skip)
+    for _ in range(32):
+        x = residual_block(x)
 
     policy = policy_head(x)
     value = value_head(x)

@@ -52,16 +52,17 @@ parser.add_argument('--epoch', '-e', default=100,
                     type=int, help='number of epochs')
 parser.add_argument('--train-dataset-size', '-tds', default=100000,
                     type=int, help='the size of the train dataset')
+parser.add_argument('--train-dataset-epoch', '-tdel',  default=1, type=int, help='the number of epoch between train data set generation')
 parser.add_argument('--train-logs', '-tl', default='{}train_logs.csv'.format(
     src.results_dir), help='path to train logs file')
+parser.add_argument('--train-logs-append', '-tla', action='store_true', help='if set, happen to  train logs instead of replacing')
 parser.add_argument(
     '--model-file', '-mf', default='{}model.h5'.format(src.models_dir), help='path to the model file')
 parser.add_argument('--value-loss', '-vl', default='mse',
                     choices=loss_value_functions.keys(), help='the loss to use on value')
 parser.add_argument('--backup', action='store_true',
                     help='if set, backup model at every epoch')
-parser.add_argument('--learning-rate', '-lr', default=1,
-                    type=float, help='the learning rate')
+parser.add_argument('--weights-in', '-wi', help='an h5 file from which load the weights before training')
 
 args = parser.parse_args()
 
@@ -73,6 +74,9 @@ if args.verbose:
     start = time.time()
 
 model = models[args.model]()
+
+if args.weights_in is not None:
+    model.load_weights(args.weights_in)
 
 if args.verbose:
     print('{}: Done "Model Creation" in {:.3f} s'.format(
@@ -129,8 +133,7 @@ if args.verbose:
     print('{}: Begin "Create Optimizer"'.format(get_date_str()))
     start = time.time()
 
-optimizer = tf.keras.optimizers.SGD(
-    lr=args.learning_rate, momentum=0.9, nesterov=True)
+optimizer = tf.keras.optimizers.Adadelta()
 
 if args.verbose:
     print('{}: Done "Create Optimizer" in {:.3f} s'.format(
@@ -142,24 +145,25 @@ if args.verbose:
     start = time.time()
 
 src.create_dir(src.results_dir)
-train_logs = open(args.train_logs, 'w')
-train_logs.write('{};{};{};{};{};{};{};{};{};{};{};{};{};{};{}\n'.format(
-    src.train_logs_epoch,
-    src.train_logs_start_time,
-    src.train_logs_end_time,
-    src.train_logs_data,
-    src.train_logs_start_index,
-    src.TrainLogsMetrics.train_loss,
-    src.TrainLogsMetrics.train_loss_policy,
-    src.TrainLogsMetrics.train_loss_value,
-    src.TrainLogsMetrics.train_accuracy_policy,
-    src.TrainLogsMetrics.train_accuracy_value,
-    src.TrainLogsMetrics.validation_loss,
-    src.TrainLogsMetrics.validation_loss_policy,
-    src.TrainLogsMetrics.validation_loss_value,
-    src.TrainLogsMetrics.validation_accuracy_policy,
-    src.TrainLogsMetrics.validation_accuracy_value,
-))
+train_logs = open(args.train_logs, 'a' if args.train_logs_append else 'w')
+if not args.train_logs_append:
+    train_logs.write('{};{};{};{};{};{};{};{};{};{};{};{};{};{};{}\n'.format(
+        src.train_logs_epoch,
+        src.train_logs_start_time,
+        src.train_logs_end_time,
+        src.train_logs_data,
+        src.train_logs_start_index,
+        src.TrainLogsMetrics.train_loss,
+        src.TrainLogsMetrics.train_loss_policy,
+        src.TrainLogsMetrics.train_loss_value,
+        src.TrainLogsMetrics.train_accuracy_policy,
+        src.TrainLogsMetrics.train_accuracy_value,
+        src.TrainLogsMetrics.validation_loss,
+        src.TrainLogsMetrics.validation_loss_policy,
+        src.TrainLogsMetrics.validation_loss_value,
+        src.TrainLogsMetrics.validation_accuracy_policy,
+        src.TrainLogsMetrics.validation_accuracy_value,
+    ))
 
 if args.verbose:
     print('{}: Done "Open Train Logs File" in {:.3f} s'.format(
@@ -203,17 +207,8 @@ for epoch in epoch_tqdm:
     epoch_validation_accuracy_value = tf.keras.metrics.BinaryAccuracy(
         src.TrainLogsMetrics.train_accuracy_value)
 
-    # update learning rate
-    if epoch % 20 == 0:
-        tf.keras.backend.set_value(
-            optimizer.lr, tf.keras.backend.get_value(optimizer.lr) / 10)
-
-        if args.verbose:
-            epoch_tqdm.write('    {}: Info new learning rate {}'.format(
-                get_date_str(), tf.keras.backend.get_value(optimizer.lr)))
-
     # prepare train dataset
-    if epoch % 3 == 0:
+    if epoch % args.train_dataset_epoch == 0:
         if args.verbose:
             epoch_tqdm.write(
                 '    {}: Begin "Create Training Dataset"'.format(get_date_str()))
@@ -227,7 +222,7 @@ for epoch in epoch_tqdm:
         data = random.choices(datas, datas_weight)[0]
 
         epoch_start_index = datas_next_start_index[data]
-        
+
         train_input, train_policy, train_value = data.get_batch(
             datas_next_start_index[data], args.train_dataset_size)
         train_dataset = tf.data.Dataset.from_tensor_slices((

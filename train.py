@@ -133,7 +133,7 @@ if args.verbose:
     print('{}: Begin "Create Optimizer"'.format(get_date_str()))
     start = time.time()
 
-optimizer = tf.keras.optimizers.Adadelta(learning_rate=1,)
+optimizer = tf.keras.optimizers.SGD(learning_rate=0.0001, nesterov=True, momentum=0.5)
 
 if args.verbose:
     print('{}: Done "Create Optimizer" in {:.3f} s'.format(

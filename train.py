@@ -52,7 +52,7 @@ parser.add_argument('--epoch', '-e', default=100,
                     type=int, help='number of epochs')
 parser.add_argument('--train-dataset-size', '-tds', default=100000,
                     type=int, help='the size of the train dataset')
-parser.add_argument('--train-dataset-epoch', '-tdel',  default=1, type=int, help='the number of epoch between train data set generation')
+parser.add_argument('--train-dataset-epoch', '-tde',  default=1, type=int, help='the number of epoch between train data set generation')
 parser.add_argument('--train-logs', '-tl', default='{}train_logs.csv'.format(
     src.results_dir), help='path to train logs file')
 parser.add_argument('--train-logs-append', '-tla', action='store_true', help='if set, happen to  train logs instead of replacing')
@@ -133,7 +133,7 @@ if args.verbose:
     print('{}: Begin "Create Optimizer"'.format(get_date_str()))
     start = time.time()
 
-optimizer = tf.keras.optimizers.Adadelta()
+optimizer = tf.keras.optimizers.Adadelta(learning_rate=1,)
 
 if args.verbose:
     print('{}: Done "Create Optimizer" in {:.3f} s'.format(
@@ -179,7 +179,7 @@ if args.backup:
     best_accuracy_value = None
 
 # epoch loop
-epoch_tqdm = tqdm.trange(args.epoch, desc='Epoch', unit='epoch')
+epoch_tqdm = tqdm.trange(args.epoch, desc='Epoch', unit='epoch', disable=True)
 for epoch in epoch_tqdm:
     if args.verbose:
         epoch_tqdm.write('epoch {}'.format(epoch))
@@ -319,7 +319,6 @@ for epoch in epoch_tqdm:
         epoch_validation_accuracy_policy.result(),
         epoch_validation_accuracy_value.result(),
     ))
-    train_logs.flush()
 
     if args.verbose:
         epoch_tqdm.write('    {}={}\n    {}={}\n    {}={}\n    {}={}\n    {}={}\n    {}={}\n    {}={}\n    {}={}\n    {}={}\n    {}={}'.format(
@@ -350,6 +349,8 @@ for epoch in epoch_tqdm:
         if best_accuracy_value < epoch_validation_accuracy_value.result():
             best_accuracy_value = epoch_validation_accuracy_value.result()
             model.save('{}best_accuracy_value.h5'.format(backup_dir))
+
+        model.save('{}last_model.h5'.format(backup_dir))
 
 
 # save model

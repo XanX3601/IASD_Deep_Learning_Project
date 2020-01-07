@@ -32,7 +32,7 @@ def basic_model():
 
 
 def resnet():
-    nb_filter = 32
+    nb_filter = 42
 
     def convolutional_block(x):
         x = keras.layers.Conv2D(nb_filter, 3, padding='same')(x)
@@ -76,10 +76,11 @@ def resnet():
     input = x
 
     x = convolutional_block(x)
-    for _ in range(32):
+    for _ in range(19):
         x = residual_block(x)
 
     policy = policy_head(x)
     value = value_head(x)
 
     return keras.Model(inputs=input, outputs=[policy, value])
+

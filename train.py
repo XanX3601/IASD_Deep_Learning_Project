@@ -5,6 +5,7 @@ import time
 
 import tensorflow as tf
 import tqdm
+import numpy as np
 
 import src
 
@@ -31,6 +32,7 @@ models = {
 loss_value_functions = {
     'mse': tf.keras.losses.MeanSquaredError(),
     'bce': tf.keras.losses.BinaryCrossentropy(from_logits=True),
+    'mae': tf.keras.losses.MeanAbsoluteError(),
 }
 
 backup_dir = '{}backups/'.format(src.models_dir)
@@ -111,7 +113,7 @@ if args.model_in is None:
         start = time.time()
 
     optimizer = tf.keras.optimizers.Adadelta(
-        lr=1.0, rho=0.95, epsilon=0.000001)
+        lr=1.0, rho=0.95, epsilon=0.001)
 
     if args.verbose:
         print('{}: Done "Create Optimizer" in {:.3f} s'.format(
@@ -136,7 +138,7 @@ else:
         start = time.time()
 
     model = tf.keras.models.load_model(args.model_in)
-    optimizer = model.optimizer
+    optimizer = tf.keras.optimizers.SGD(learning_rate=0.00001, momentum=0.9)
 
     if args.verbose:
         print('{}: Done "Loading model" in {:.3f} s'.format(
@@ -176,6 +178,8 @@ if args.backup:
     best_loss = None
     best_loss_policy = None
     best_loss_value = None
+
+last_epoch_loss = 0
 
 # epoch loop
 epoch_tqdm = tqdm.trange(args.epoch, desc='Epoch', unit='epoch', disable=True)
@@ -245,9 +249,8 @@ for epoch in epoch_tqdm:
 
             loss_value = loss_policy_value + loss_value_value
 
+        # apply gradient descent    
         gradients = tape.gradient(loss_value, model.trainable_variables)
-
-        # apply gradient descent
         optimizer.apply_gradients(zip(gradients, model.trainable_variables))
 
         # update metrics
@@ -256,6 +259,8 @@ for epoch in epoch_tqdm:
         epoch_train_loss_value(loss_value_value)
         epoch_train_accuracy_policy(batch_policy, logits_policy)
         epoch_train_accuracy_value(batch_value, logits_value)
+
+    last_epoch_loss = epoch_train_loss.result()
 
     # updates logs
     epoch_end_time = time.time()

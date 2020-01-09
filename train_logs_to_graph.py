@@ -4,6 +4,7 @@ import pandas as pd
 
 import matplotlib.pyplot as plt
 import src
+import numpy as np
 
 parser = argparse.ArgumentParser()
 parser.add_argument('logs', help='path to train logs')
@@ -31,47 +32,42 @@ x = range(len(df[src.train_logs_epoch]))
 
 axes[0].plot(x, df[src.TrainLogsMetrics.train_loss],
              alpha=0.7, label=src.TrainLogsMetrics.train_loss)
-axes[0].plot(x, df[src.TrainLogsMetrics.validation_loss],
-             alpha=0.7, label=src.TrainLogsMetrics.validation_loss)
 axes[0].set_xlabel('epoch')
 axes[0].set_ylabel('loss')
 axes[0].legend()
 
 axes[1].plot(x, df[src.TrainLogsMetrics.train_loss_policy],
              alpha=0.7, label=src.TrainLogsMetrics.train_loss_policy)
-axes[1].plot(x, df[src.TrainLogsMetrics.validation_loss_policy],
-             alpha=0.7, label=src.TrainLogsMetrics.validation_loss_policy)
 axes[1].set_xlabel('epoch')
 axes[1].set_ylabel('loss policy')
 axes[1].legend()
 
 axes[2].plot(x, df[src.TrainLogsMetrics.train_loss_value],
              alpha=0.7, label=src.TrainLogsMetrics.train_loss_value)
-axes[2].plot(x, df[src.TrainLogsMetrics.validation_loss_value],
-             alpha=0.7, label=src.TrainLogsMetrics.validation_loss_value)
 axes[2].set_xlabel('epoch')
 axes[2].set_ylabel('loss value')
 axes[2].legend()
 
 axes[3].plot(x, df[src.TrainLogsMetrics.train_accuracy_policy],
              alpha=0.7, label=src.TrainLogsMetrics.train_accuracy_policy)
-axes[3].plot(x, df[src.TrainLogsMetrics.validation_accuracy_policy],
-             alpha=0.7, label=src.TrainLogsMetrics.validation_accuracy_policy)
 axes[3].set_xlabel('epoch')
 axes[3].set_ylabel('accuracy policy')
 axes[3].legend()
 
 axes[4].plot(x, df[src.TrainLogsMetrics.train_accuracy_value],
              alpha=0.7, label=src.TrainLogsMetrics.train_accuracy_value)
-axes[4].plot(x, df[src.TrainLogsMetrics.validation_accuracy_value],
-             alpha=0.7, label=src.TrainLogsMetrics.validation_accuracy_value)
 axes[4].set_xlabel('epoch')
 axes[4].set_ylabel('accuracy value')
 axes[4].legend()
 
-nb_epoch_per_data = list(df.groupby(src.train_logs_data).count()[
-                         src.train_logs_epoch])
-datas = list(pd.unique(df[src.train_logs_data]))
+nb_epoch_per_data = df.groupby(src.train_logs_data).count()[
+                         src.train_logs_epoch]
+
+datas = pd.unique(df[src.train_logs_data])
+
+sort_index = np.argsort(datas)
+datas = datas[sort_index]
+nb_epoch_per_data = nb_epoch_per_data[sort_index]
 
 bars = ax_data.bar(range(len(datas)), nb_epoch_per_data)
 
